@@ -1,0 +1,401 @@
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     1
+
+
+MACRO ASSEMBLER A51 V8.02
+OBJECT MODULE PLACED IN main.OBJ
+ASSEMBLER INVOKED BY: C:\Keil\C51\BIN\A51.EXE main.asm SET(SMALL) DEBUG EP
+
+LOC  OBJ            LINE     SOURCE
+
+                       1     ;=================================      
+                       2     ;               LCD Connection
+                       3     ;=================================      
+  0080                 4     LCD_Port EQU P0
+  00A0                 5     LCD_RS BIT P2.0
+  00A1                 6     LCD_EN BIT P2.1
+                       7     ;=================================      
+                       8     ;               ADC Connection
+                       9     ;=================================      
+  0090                10     ADC_Port EQU P1
+  00B0                11     ADC_RD BIT P3.0
+  00B1                12     ADC_WR BIT P3.1
+  00B2                13     ADC_INTR BIT P3.2
+  REG                 14     ADC_Value EQU R0
+                      15     ;=================================
+                      16     ;     DC Motor Connection
+                      17     ;=================================
+  00A2                18     PWM_EN BIT P2.2
+  00A3                19     BTN1 BIT P2.3
+  00A4                20     BTN2 BIT P2.4
+  00A5                21     BTN3 BIT P2.5
+  0064                22     PWM_Value DATA 100
+                      23     
+0000                  24     ORG 0000H
+0000 020080           25             LJMP Main
+                      26     
+000B                  27     ORG 000BH
+000B 0200FD           28             LJMP Timer0_ISR
+                      29     ;=================================
+                      30     ;                          Main         
+                      31     ;=================================
+0080                  32     ORG 0080H
+                      33             
+0080                  34     Main:
+0080 120164           35             LCALL LCD_Init                                  ;Initialize LCD
+0083 9001B7           36             MOV     DPTR, #TEMPERATURE                      ;Print Temperature
+0086 1201A6           37             LCALL LCD_String
+                      38     
+0089 D2AF             39             SETB EA                                                 ;Enable Interupt
+008B D2A9             40             SETB ET0                                                ;Turn on Timer0 overflow in
+                             terupt
+008D 758902           41             MOV     TMOD, #02H                                      ;Timer0 Mode 2
+0090 758A00           42             MOV     TL0, #00H                               
+0093 758C00           43             MOV     TH0, #00H
+0096 D28C             44             SETB TR0                                                ;Start Timer0
+                      45     
+                      46     ;=================================
+                      47     ;          DC Motor Mode
+                      48     ;=================================
+0098                  49     Check_Mode:
+                      50     ;-----------------------
+                      51     ;         Manual Mode
+                      52     ;-----------------------
+0098 30A31A           53             JNB BTN1, Speed_1                                ;Check if Button 1 is pressed (pre
+                             ssed: BTN1 = 0). If pressed, jump to Speed_1
+009B 30A42A           54             JNB     BTN2, Speed_2                            ;Check if Button 2 is pressed (pre
+                             ssed: BTN2 = 0). If pressed, jump to Speed_2
+009E 30A53A           55             JNB BTN3, Speed_3                                ;Check if Button 3 is pressed (pre
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     2
+
+                             ssed: BTN3 = 0). If pressed, jump to Speed_3
+                      56     ;-----------------------
+                      57     ;         Auto Mode
+                      58     ;-----------------------        
+00A1 C3               59             CLR C
+00A2 E8               60             MOV     A, ADC_Value     
+00A3 941E             61             SUBB A, #30                                              ;Compare temperature value
+                              to 30oC
+00A5 400E             62             JC Speed_1                                               ;If temperature <= 30oC, j
+                             ump to Speed_1
+00A7 600C             63             JZ Speed_1
+                      64     
+00A9 C3               65             CLR C
+00AA E8               66             MOV A, ADC_Value
+00AB 9432             67             SUBB A, #50                                              ;Compare temperature value
+                              to 50oC
+00AD 4019             68             JC Speed_2                                               ;If 30 < temperature <= 50
+                             oC, jump to Speed_2
+00AF 6017             69             JZ Speed_2
+                      70     
+00B1 8028             71             JMP Speed_3                                              ;If temperature > 50oC, ju
+                             mp to Speed_3
+                      72     
+00B3 80E3             73             SJMP Check_Mode
+                      74     ;-----------------------
+                      75     ;        Duty cycle 25%
+                      76     ;-----------------------
+00B5                  77     Speed_1:                                                                 
+00B5 756419           78             MOV PWM_Value, #25
+00B8 1200EE           79             LCALL Print_Temperature
+00BB 7401             80             MOV A, #1
+00BD 120199           81             LCALL Set_Cursor_2
+00C0 9001C3           82             MOV DPTR, #MODE_1 
+00C3 1201A6           83             LCALL LCD_String
+00C6 80D0             84             SJMP Check_Mode 
+                      85     ;-----------------------
+                      86     ;        Duty cycle 50%
+                      87     ;-----------------------
+00C8                  88     Speed_2:                                                                  
+00C8 756432           89             MOV PWM_Value, #50
+00CB 1200EE           90             LCALL Print_Temperature
+00CE 7401             91             MOV A, #1
+00D0 120199           92             LCALL Set_Cursor_2
+00D3 9001D2           93             MOV DPTR, #MODE_2 
+00D6 1201A6           94             LCALL LCD_String
+00D9 80BD             95             SJMP Check_Mode 
+                      96     ;-----------------------
+                      97     ;        Duty cycle 75%
+                      98     ;-----------------------
+00DB                  99     Speed_3:                                                                  
+00DB 75644B          100             MOV PWM_Value, #75
+00DE 1200EE          101             LCALL Print_Temperature
+00E1 7401            102             MOV A, #1
+00E3 120199          103             LCALL Set_Cursor_2
+00E6 9001E1          104             MOV DPTR, #MODE_3 
+00E9 1201A6          105             LCALL LCD_String
+00EC 80AA            106             SJMP Check_Mode 
+                     107     ;=================================
+                     108     ;               Print Temperature
+                     109     ;=================================
+00EE                 110     Print_Temperature:
+00EE 740B            111             MOV     A, #11                                                    ;Set Cursor to po
+                             sition 11 line 1
+00F0 12018C          112             LCALL Set_Cursor_1
+00F3 120132          113             LCALL ADC_Convert
+00F6 120207          114             LCALL DELAY_50MS
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     3
+
+00F9 120207          115             LCALL DELAY_50MS
+00FC 22              116             RET
+                     117     ;=================================
+                     118     ;Timer0 Interupt Service Rountine
+                     119     ;=================================
+00FD                 120     Timer0_ISR:                                                                              ;I
+                             nterrupt Timer to control PWM
+00FD C0E0            121             PUSH ACC
+00FF 927F            122             MOV 7FH, C
+0101 C28D            123             CLR     TF0
+0103 C28C            124             CLR TR0
+0105 D28C            125             SETB TR0
+0107 E564            126             MOV A, PWM_Value
+0109 B40002          127             CJNE A, #0, EN_PWM                                                       ;PWM is di
+                             fferent from 0, Enable PWM
+010C 800E            128             JMP Exit_ISR                                                             ;PWM is eq
+                             ual to 0, Exit Interrupt
+010E                 129             EN_PWM:
+010E 0F              130             INC R7                                                                           ;I
+                             ncreasing interrupt counter
+010F EF              131             MOV A, R7
+0110 B56402          132             CJNE A, PWM_Value, OFF_Pulse
+0113 C2A2            133             CLR PWM_EN                                                                   ;Open 
+                             DC Motor
+0115                 134             OFF_Pulse:
+0115 B46404          135             CJNE A, #100, Exit_ISR                                           ;Duty cylce is not
+                              over --> Exit Interrupt
+0118 D2A2            136             SETB PWM_EN                                                                      ;C
+                             lose DC Motor
+011A 7F00            137             MOV R7, #0                                                                       ;R
+                             eset Counter
+011C                 138             Exit_ISR:
+011C A207            139             MOV C, 7H
+011E D0E0            140             POP ACC
+0120 32              141             RETI
+                     142     ;=================================
+                     143     ;                          ADC
+                     144     ;=================================
+0121                 145     ADC_Init:
+0121 7590FF          146             MOV     ADC_Port, #0FFH                                 ;Set ADC_Port as an input
+0124 D2B0            147             SETB ADC_RD
+0126 C2B1            148             CLR     ADC_WR                                                  
+0128 D2B1            149             SETB ADC_WR                                                     ;Start read data
+012A 20B2FD          150             Here: JB ADC_INTR, Here                         ;Wait for INTR signal
+012D C2B0            151             CLR     ADC_RD                                                  ;Allow read data
+012F A890            152             MOV     ADC_Value, ADC_Port                             ;Store data
+0131 22              153             RET
+                     154             
+0132                 155     ADC_Convert:
+0132 3121            156             ACALL ADC_Init
+                     157     
+0134 E8              158             MOV     A, ADC_Value                                    ;Hundreds
+0135 75F064          159             MOV     B, #100
+0138 84              160             DIV     AB
+0139 2430            161             ADD     A, #30H
+013B 3181            162             ACALL LCD_Data
+013D 5102            163             ACALL DELAY_100US
+                     164             
+013F E5F0            165             MOV     A, B                                                    ;Tens
+0141 75F00A          166             MOV     B, #10
+0144 84              167             DIV     AB
+0145 2430            168             ADD     A, #30H
+0147 3181            169             ACALL LCD_Data
+0149 5102            170             ACALL DELAY_100US
+                     171     
+014B E5F0            172             MOV A, B                                                        ;Units
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     4
+
+014D 2430            173             ADD     A, #30H
+014F 3181            174             ACALL LCD_Data
+0151 5102            175             ACALL DELAY_100US
+                     176                     
+0153 74DF            177             MOV A, #11011111B                                       ;Degree 
+0155 120181          178             LCALL LCD_Data
+0158 120202          179             LCALL DELAY_100US
+                     180             
+015B 7443            181             MOV A, #'C'                                                     ;'C'
+015D 120181          182             LCALL LCD_Data
+0160 120202          183             LCALL DELAY_100US
+0163 22              184             RET
+                     185     ;=================================
+                     186     ;            LCD 8 bit mode
+                     187     ;=================================
+0164                 188     LCD_Init:
+0164 7438            189             MOV     A,#38H                                  ;Send 38H to set 8 bit Interface, 2
+                              line LCD and 5x7 Font set
+0166 3176            190             ACALL LCD_Command
+0168 5102            191             ACALL DELAY_100US
+016A 740C            192             MOV     A,#0CH                                  ;Display ON, Cursor OFF
+016C 3176            193             ACALL LCD_Command
+016E 5102            194             ACALL DELAY_100US
+0170 22              195             RET
+                     196     
+0171                 197     LCD_CLR:                                                ;Clear LCD
+0171 7401            198             MOV             A,#01H
+0173 3181            199             ACALL   LCD_Data
+0175 22              200             RET
+                     201     
+0176                 202     LCD_Command:
+0176 F580            203             MOV     LCD_Port,A
+0178 C2A0            204             CLR     LCD_RS                                  ;Clear RS, going to send command
+017A D2A1            205             SETB LCD_EN
+017C 5102            206             ACALL DELAY_100US
+017E C2A1            207             CLR     LCD_EN
+0180 22              208             RET     
+                     209     
+0181                 210     LCD_Data:
+0181 F580            211             MOV     LCD_Port,A
+0183 D2A0            212             SETB LCD_RS                                     ;Set RS, going to send data
+0185 D2A1            213             SETB LCD_EN
+0187 5102            214             ACALL DELAY_100US
+0189 C2A1            215             CLR     LCD_EN
+018B 22              216             RET     
+                     217     
+018C                 218     Set_Cursor_1: 
+018C C2A0            219             CLR LCD_RS                              
+018E 2480            220             ADD A, #80H                                     ;Set Cursor to line 1
+0190 120176          221             LCALL LCD_Command
+0193 120202          222             LCALL DELAY_100US 
+0196 D2A0            223             SETB LCD_RS
+0198 22              224             RET
+                     225     
+0199                 226     Set_Cursor_2:
+0199 C2A0            227             CLR LCD_RS                      
+019B 24C0            228             ADD A, #0C0H                            ;Set Cursor to line 2
+019D 120176          229             LCALL LCD_Command
+01A0 120202          230             LCALL DELAY_100US 
+01A3 D2A0            231             SETB LCD_RS
+01A5 22              232             RET
+                     233     
+01A6                 234     LCD_String:
+01A6 E4              235             CLR A
+01A7 93              236             MOVC A, @A+DPTR
+01A8 B40002          237             CJNE A, #0, Jump
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     5
+
+01AB 8009            238             SJMP Exit
+01AD                 239             Jump:
+01AD 120181          240             LCALL LCD_Data
+01B0 120202          241             LCALL DELAY_100US
+01B3 A3              242             INC DPTR
+01B4 80F0            243             SJMP LCD_String
+01B6                 244             Exit: 
+01B6 22              245             RET
+                     246     
+                     247     ;=================================
+                     248     ;                Print String
+                     249     ;=================================
+01B7                 250     TEMPERATURE:
+01B7 54454D50        251             DB "TEMPERATUR:", 0
+01BB 45524154                
+01BF 55523A00                
+                     252     
+01C3                 253     MODE_1:
+01C3 44555459        254             DB "DUTY CYCLE 25%", 0
+01C7 20435943                
+01CB 4C452032                
+01CF 352500                  
+                     255     
+01D2                 256     MODE_2:
+01D2 44555459        257             DB "DUTY CYCLE 50%", 0
+01D6 20435943                
+01DA 4C452035                
+01DE 302500                  
+                     258     
+01E1                 259     MODE_3:
+01E1 44555459        260             DB "DUTY CYCLE 75%", 0
+01E5 20435943                
+01E9 4C452037                
+01ED 352500                  
+                     261     
+01F0                 262     BLANK:
+01F0 20202020        263             DB "                 ", 0
+01F4 20202020                
+01F8 20202020                
+01FC 20202020                
+0200 2000                    
+                     264     ;=================================
+                     265     ;                         Delay
+                     266     ;=================================
+0202                 267     DELAY_100US:
+0202 7932            268                MOV R1, #50
+0204 D9FE            269     LOOP1: DJNZ R1, LOOP1
+0206 22              270                RET
+                     271             
+0207                 272     DELAY_50MS:
+0207 7A32            273                     MOV R2, #50
+0209 7BFA            274     LOOP2:  MOV R3, #250
+020B DBFE            275     LOOP3:  DJNZ    R3, LOOP3
+020D DAFA            276                     DJNZ    R2, LOOP2
+020F 22              277                     RET
+                     278     END
+A51 MACRO ASSEMBLER  MAIN                                                                 07/18/2023 15:15:18 PAGE     6
+
+SYMBOL TABLE LISTING
+------ ----- -------
+
+
+N A M E             T Y P E  V A L U E   ATTRIBUTES
+
+ACC. . . . . . . .  D ADDR   00E0H   A   
+ADC_CONVERT. . . .  C ADDR   0132H   A   
+ADC_INIT . . . . .  C ADDR   0121H   A   
+ADC_INTR . . . . .  B ADDR   00B0H.2 A   
+ADC_PORT . . . . .  D ADDR   0090H   A   
+ADC_RD . . . . . .  B ADDR   00B0H.0 A   
+ADC_VALUE. . . . .    REG    R0          
+ADC_WR . . . . . .  B ADDR   00B0H.1 A   
+B. . . . . . . . .  D ADDR   00F0H   A   
+BLANK. . . . . . .  C ADDR   01F0H   A   
+BTN1 . . . . . . .  B ADDR   00A0H.3 A   
+BTN2 . . . . . . .  B ADDR   00A0H.4 A   
+BTN3 . . . . . . .  B ADDR   00A0H.5 A   
+CHECK_MODE . . . .  C ADDR   0098H   A   
+DELAY_100US. . . .  C ADDR   0202H   A   
+DELAY_50MS . . . .  C ADDR   0207H   A   
+EA . . . . . . . .  B ADDR   00A8H.7 A   
+EN_PWM . . . . . .  C ADDR   010EH   A   
+ET0. . . . . . . .  B ADDR   00A8H.1 A   
+EXIT . . . . . . .  C ADDR   01B6H   A   
+EXIT_ISR . . . . .  C ADDR   011CH   A   
+HERE . . . . . . .  C ADDR   012AH   A   
+JUMP . . . . . . .  C ADDR   01ADH   A   
+LCD_CLR. . . . . .  C ADDR   0171H   A   
+LCD_COMMAND. . . .  C ADDR   0176H   A   
+LCD_DATA . . . . .  C ADDR   0181H   A   
+LCD_EN . . . . . .  B ADDR   00A0H.1 A   
+LCD_INIT . . . . .  C ADDR   0164H   A   
+LCD_PORT . . . . .  D ADDR   0080H   A   
+LCD_RS . . . . . .  B ADDR   00A0H.0 A   
+LCD_STRING . . . .  C ADDR   01A6H   A   
+LOOP1. . . . . . .  C ADDR   0204H   A   
+LOOP2. . . . . . .  C ADDR   0209H   A   
+LOOP3. . . . . . .  C ADDR   020BH   A   
+MAIN . . . . . . .  C ADDR   0080H   A   
+MODE_1 . . . . . .  C ADDR   01C3H   A   
+MODE_2 . . . . . .  C ADDR   01D2H   A   
+MODE_3 . . . . . .  C ADDR   01E1H   A   
+OFF_PULSE. . . . .  C ADDR   0115H   A   
+P0 . . . . . . . .  D ADDR   0080H   A   
+P1 . . . . . . . .  D ADDR   0090H   A   
+P2 . . . . . . . .  D ADDR   00A0H   A   
+P3 . . . . . . . .  D ADDR   00B0H   A   
+PRINT_TEMPERATURE.  C ADDR   00EEH   A   
+PWM_EN . . . . . .  B ADDR   00A0H.2 A   
+PWM_VALUE. . . . .  D ADDR   0064H   A   
+SET_CURSOR_1 . . .  C ADDR   018CH   A   
+SET_CURSOR_2 . . .  C ADDR   0199H   A   
+SPEED_1. . . . . .  C ADDR   00B5H   A   
+SPEED_2. . . . . .  C ADDR   00C8H   A   
+SPEED_3. . . . . .  C ADDR   00DBH   A   
+TEMPERATURE. . . .  C ADDR   01B7H   A   
+TF0. . . . . . . .  B ADDR   0088H.5 A   
+TH0. . . . . . . .  D ADDR   008CH   A   
+TIMER0_ISR . . . .  C ADDR   00FDH   A   
+TL0. . . . . . . .  D ADDR   008AH   A   
+TMOD . . . . . . .  D ADDR   0089H   A   
+TR0. . . . . . . .  B ADDR   0088H.4 A   
+
+
+REGISTER BANK(S) USED: 0 
+
+
+ASSEMBLY COMPLETE.  0 WARNING(S), 0 ERROR(S)
